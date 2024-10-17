@@ -48,6 +48,9 @@ $statement->closeCursor();
         <input type="text" name="lastName" placeholder="Enter last name" value="<?php echo $searchTerm; ?>">
         <input type="submit" value="Search">
     </form>
+    <form action="add_customer_form.php" method="get">
+    <button type="submit">Add customer</button><br>
+</form>
 
     <table>
         <tr>

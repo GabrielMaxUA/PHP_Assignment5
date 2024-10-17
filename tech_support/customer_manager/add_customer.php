@@ -20,7 +20,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $phone = filter_input(INPUT_POST, 'phone', FILTER_SANITIZE_STRING);
     $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
     $password = filter_input(INPUT_POST, 'password', FILTER_SANITIZE_STRING);
-    $custID = filter_input(INPUT_POST, 'custID', FILTER_VALIDATE_INT);
 
     // Validation
     if (empty($firstName) || strlen($firstName) > 50) {
@@ -47,25 +46,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (strlen($password) < 6 || strlen($password) > 20) {
         $errors['password'] = "Password must be between 6 and 20 characters.";
     }
-    if (!empty($phone) && !preg_match('/^\d{3}\-\d{3}-\d{4}$/', $phone)) {
-        $errors['phone'] = "Phone number must be in the format (999) 999-9999.";
+    if (!empty($phone) && !preg_match('/^\d{3}-\d{3}-\d{4}$/', $phone)) {
+        $errors['phone'] = "Phone number must be in the format 999-999-9999.";
     }
 
+    if (empty($errors)){
+      $query = "SELECT COUNT(*) FROM customers WHERE email = :email";
+      $statement = $db->prepare($query);
+      $statement->bindValue(':email', $email);
+      $statement->execute();
+      $emailExists = $statement->fetchColumn();
+      $statement->closeCursor();
+
+      if ($emailExists > 0) {
+        $errors['email'] = "A customer with this email already exists.";
+      }
+    }
+   
     // If no errors, update the database
     if (empty($errors)) {
-        $query = "UPDATE customers SET 
-            firstName = :firstName, 
-            lastName = :lastName, 
-            address = :address, 
-            city = :city, 
-            state = :state, 
-            postalCode = :postalCode, 
-            countryCode = :countryCode, 
-            email = :email, 
-            phone = :phone, 
-            password = :password
-        WHERE customerID = :custID"; 
-
+      try {
+        $query = "INSERT INTO customers (firstName, lastName, address, city, 
+            state, postalCode, countryCode, email, phone, password)
+        VALUES(:firstName, :lastName, :address, :city, :state, :postalCode, :countryCode, :email,
+        :phone, :password)";
+    
         $statement = $db->prepare($query);
         $statement->bindValue(':firstName', $firstName);
         $statement->bindValue(':lastName', $lastName);
@@ -77,26 +82,33 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $statement->bindValue(':email', $email);
         $statement->bindValue(':phone', $phone);
         $statement->bindValue(':password', $password);
-        $statement->bindValue(':custID', $custID);
+    
         $statement->execute();
         $statement->closeCursor();
-
-        // Set session to show customer name
+        
+        // Redirect on success
         $_SESSION['customer'] = $firstName . ' ' . $lastName;
-
-        // Redirect to confirmation page
         header("Location: confirmation.php");
-        die();
+        exit();
+    } catch (PDOException $e) {
+        // Handle error (log it, show user-friendly message, etc.)
+        $_SESSION['error'] = 'An error occurred while adding the customer: ' . $e->getMessage();
+        header("Location: ../errors/error.php");  // Redirect to an error page or show error message
+        exit();
     }
+  }
 }
-
 // Fetch country list for the dropdown
 $queryCountries = 'SELECT * FROM countries';
 $statement = $db->prepare($queryCountries);
 $statement->execute();
 $countries = $statement->fetchAll();
 $statement->closeCursor();
+
+
 ?>
+
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -113,7 +125,7 @@ $statement->closeCursor();
 </header>
 
 <main>
-<form action="edit_customer.php" method="post">
+<form action="add_customer.php" method="post">
     <div id="data">
 
         <div class="labs">
@@ -221,7 +233,7 @@ $statement->closeCursor();
         <input type="hidden" name="custID" value="<?php echo htmlspecialchars($custID); ?>">
 
         <div class="button">
-            <input type="submit" value="Update">
+            <input type="submit" value="Add Customer">
         </div>
     </div>
 </form>
@@ -231,3 +243,5 @@ $statement->closeCursor();
 
 </body>
 </html>
+
+
